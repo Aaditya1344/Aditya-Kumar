@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureID IAM — Registration & Login Journeys with MFA</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+
+  <main class="app-container">
+    <!-- LEFT BRANDING PANEL (Desktop) -->
+    <section class="brand-panel">
+      <div class="brand-header">
+        <div class="brand-logo">
+          <div class="brand-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <span class="brand-logo-text">SecureID</span>
+        </div>
+        <h1 class="brand-tagline">Secure access to your enterprise account</h1>
+        <p class="brand-description">Enterprise-grade Identity and Access Management with step-up Multi-Factor Authentication, Session Management, and JWT Bearer Tokens.</p>
+      </div>
+
+      <div class="brand-features">
+        <div class="feature-item">
+          <span class="feature-icon">🛡️</span>
+          <span>Adaptive MFA (Email, SMS & Authenticator TOTP)</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">🔒</span>
+          <span>HttpOnly SameSite Session Protection</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">⚡</span>
+          <span>Stateless JWT Bearer Auth for APIs</span>
+        </div>
+        <div class="feature-item">
+          <span class="feature-icon">⏱️</span>
+          <span>Cryptographic OTPs & Account Lockout Defense</span>
+        </div>
+      </div>
+
+      <div class="brand-footer">
+        <span class="status-badge">
+          <span class="status-dot"></span>
+          IAM Engine: Online
+        </span>
+        <span>SecureID v1.0.0</span>
+      </div>
+    </section>
+
+    <!-- RIGHT CONTENT / AUTHENTICATION PANEL -->
+    <section class="content-panel" id="content-panel">
+
+      <!-- GLOBAL NOTIFICATION BANNER -->
+      <div id="global-alert" class="alert-banner"></div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 1 (FORM) -->
+      <!-- ========================================== -->
+      <div id="view-register" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Create your account</h2>
+          <p class="view-subtitle">Enter your details to register a secure IAM account.</p>
+        </div>
+
+        <form id="form-register" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="reg-fullname">Full Name</label>
+            <input type="text" id="reg-fullname" class="form-input" placeholder="e.g. Aditya Kumar" required autocomplete="name">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Work Email</label>
+            <input type="email" id="reg-email" class="form-input" placeholder="name@company.com" required autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reg-mobile">Mobile Number</label>
+            <div class="phone-group">
+              <select id="reg-country-code" class="country-select">
+                <option value="+91" selected>🇮🇳 +91</option>
+                <option value="+1">🇺🇸 +1</option>
+                <option value="+44">🇬🇧 +44</option>
+                <option value="+61">🇦🇺 +61</option>
+                <option value="+49">🇩🇪 +49</option>
+                <option value="+33">🇫🇷 +33</option>
+                <option value="+81">🇯🇵 +81</option>
+                <option value="+971">🇦🇪 +971</option>
+              </select>
+              <input type="tel" id="reg-mobile" class="form-input" placeholder="9876543210" required autocomplete="tel-national">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reg-password">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="reg-password" class="form-input" placeholder="Create a strong password" required autocomplete="new-password">
+              <button type="button" class="toggle-password-btn" data-target="reg-password" title="Toggle password visibility">
+                👁️
+              </button>
+            </div>
+
+            <!-- LIVE PASSWORD CHECKLIST -->
+            <div class="password-requirements">
+              <div class="req-title">Password must contain:</div>
+              <ul class="req-list">
+                <li id="req-length" class="req-item"><span class="req-icon">○</span> 8+ characters</li>
+                <li id="req-upper" class="req-item"><span class="req-icon">○</span> 1 uppercase letter</li>
+                <li id="req-number" class="req-item"><span class="req-icon">○</span> 1 number</li>
+                <li id="req-special" class="req-item"><span class="req-icon">○</span> 1 special character</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-group">
+              <input type="checkbox" id="reg-terms" required>
+              <span>I agree to the <a href="#" class="link-btn" onclick="alert('Terms and conditions agreed.')">Terms of Service</a> and <a href="#" class="link-btn" onclick="alert('Privacy policy acknowledged.')">Privacy Policy</a></span>
+            </label>
+          </div>
+
+          <button type="submit" id="btn-submit-register" class="btn btn-primary">
+            <span>Create Account</span>
+          </button>
+        </form>
+
+        <div class="divider">or</div>
+
+        <p style="text-align: center; font-size: 13px; color: var(--text-secondary);">
+          Already have an account? 
+          <button type="button" class="link-btn" onclick="app.showView('view-login')">Sign In</button>
+        </p>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 2 (EMAIL OTP) -->
+      <!-- ========================================== -->
+      <div id="view-register-email-otp" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Verify your email</h2>
+          <p class="view-subtitle">We sent a 6-digit verification code to <strong id="display-reg-email">your email</strong>.</p>
+        </div>
+
+        <div id="alert-email-otp" class="alert-banner"></div>
+
+        <div class="otp-container">
+          <div class="otp-inputs" id="email-otp-boxes">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric" autofocus>
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+          </div>
+
+          <div class="otp-meta">
+            <span class="timer-pill">
+              ⏱️ <span id="email-otp-timer">05:00</span>
+            </span>
+            <button type="button" id="btn-resend-email-otp" class="resend-btn" disabled>
+              Resend code in <span id="email-resend-timer">30s</span>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="btn-verify-email-otp" class="btn btn-primary" style="margin-bottom: 12px;">
+          Verify Email Code
+        </button>
+
+        <p style="text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+          Didn't receive the code? Check your spam folder or look at the server terminal simulation.
+        </p>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 3 (MOBILE OTP) -->
+      <!-- ========================================== -->
+      <div id="view-register-sms-otp" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Verify your mobile number</h2>
+          <p class="view-subtitle">
+            Enter the 6-digit code sent to <strong id="display-reg-mobile">+91 9876543210</strong>.
+            <button type="button" class="link-btn" id="btn-change-mobile-toggle" style="margin-left: 6px;">Wrong number? Change</button>
+          </p>
+        </div>
+
+        <!-- Inline Mobile Number Change Box -->
+        <div id="box-change-mobile" style="display: none; background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--card-border);">
+          <label class="form-label" style="font-size: 12px;">Update Mobile Number:</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="tel" id="input-update-mobile" class="form-input" placeholder="New mobile number">
+            <button type="button" id="btn-save-mobile" class="btn btn-primary" style="width: auto; padding: 0 14px;">Update & Resend</button>
+          </div>
+        </div>
+
+        <div id="alert-sms-otp" class="alert-banner"></div>
+
+        <div class="otp-container">
+          <div class="otp-inputs" id="sms-otp-boxes">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric" autofocus>
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+          </div>
+
+          <div class="otp-meta">
+            <span class="timer-pill">
+              ⏱️ <span id="sms-otp-timer">05:00</span>
+            </span>
+            <button type="button" id="btn-resend-sms-otp" class="resend-btn" disabled>
+              Resend code in <span id="sms-resend-timer">30s</span>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="btn-verify-sms-otp" class="btn btn-primary">
+          Verify Mobile Code
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 4 (MFA METHOD SETUP) -->
+      <!-- ========================================== -->
+      <div id="view-register-mfa-setup" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Set up Two-Factor Authentication</h2>
+          <p class="view-subtitle">Select your primary second-factor authentication method.</p>
+        </div>
+
+        <div class="mfa-options-grid">
+          <!-- OPTION 1: AUTHENTICATOR APP -->
+          <div class="mfa-option-card selected" data-method="authenticator">
+            <div class="mfa-option-icon">📱</div>
+            <div class="mfa-option-content">
+              <div class="mfa-option-title">
+                Authenticator App
+                <span class="badge-recommended">Recommended</span>
+              </div>
+              <div class="mfa-option-desc">Use Google Authenticator, Microsoft Authenticator, or Authy.</div>
+            </div>
+            <div class="mfa-radio-indicator"></div>
+          </div>
+
+          <!-- OPTION 2: SMS OTP -->
+          <div class="mfa-option-card" data-method="sms">
+            <div class="mfa-option-icon">💬</div>
+            <div class="mfa-option-content">
+              <div class="mfa-option-title">SMS Verification</div>
+              <div class="mfa-option-desc">Receive a temporary single-use code sent to your phone.</div>
+            </div>
+            <div class="mfa-radio-indicator"></div>
+          </div>
+
+          <!-- OPTION 3: EMAIL OTP -->
+          <div class="mfa-option-card" data-method="email">
+            <div class="mfa-option-icon">✉️</div>
+            <div class="mfa-option-content">
+              <div class="mfa-option-title">Email Verification</div>
+              <div class="mfa-option-desc">Receive a temporary single-use code in your inbox.</div>
+            </div>
+            <div class="mfa-radio-indicator"></div>
+          </div>
+        </div>
+
+        <button type="button" id="btn-continue-mfa-setup" class="btn btn-primary">
+          Continue
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 5 (AUTHENTICATOR APP QR) -->
+      <!-- ========================================== -->
+      <div id="view-register-authenticator-setup" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Scan Authenticator QR Code</h2>
+          <p class="view-subtitle">Scan this QR code using your Authenticator app (Google Authenticator, Authy, etc.).</p>
+        </div>
+
+        <div class="qr-wrapper">
+          <div class="qr-image-container">
+            <img id="totp-qr-image" class="qr-image" src="" alt="Authenticator QR Code">
+          </div>
+
+          <div style="margin-top: 14px;">
+            <button type="button" class="link-btn" id="btn-toggle-setup-key">Can't scan? Enter setup key</button>
+          </div>
+
+          <div id="setup-key-container" style="display: none; margin-top: 10px;">
+            <div class="setup-key-box">
+              <span id="totp-secret-key">XXXX XXXX XXXX XXXX</span>
+              <button type="button" class="btn btn-secondary" id="btn-copy-secret" style="width: auto; height: 32px; font-size: 11px; padding: 0 10px;">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="app.showView('view-register-mfa-setup')">Back</button>
+          <button type="button" id="btn-continue-totp-verify" class="btn btn-primary">Continue to Verification</button>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 6 (MFA VERIFY) -->
+      <!-- ========================================== -->
+      <div id="view-register-mfa-verify" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title" id="mfa-verify-title">Verify 2FA Code</h2>
+          <p class="view-subtitle" id="mfa-verify-subtitle">Enter the 6-digit code from your Authenticator app.</p>
+        </div>
+
+        <div id="alert-mfa-verify" class="alert-banner"></div>
+
+        <div class="otp-container">
+          <div class="otp-inputs" id="mfa-verify-boxes">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric" autofocus>
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+          </div>
+
+          <div class="otp-meta">
+            <span class="timer-pill">
+              ⏱️ <span id="mfa-verify-timer">05:00</span>
+            </span>
+            <button type="button" id="btn-resend-mfa-verify" class="resend-btn" style="display: none;" disabled>
+              Resend Code
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="btn-submit-mfa-verify" class="btn btn-primary">
+          Verify & Complete Registration
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: REGISTRATION STEP 7 (SUCCESS) -->
+      <!-- ========================================== -->
+      <div id="view-register-success" class="auth-view">
+        <div class="success-hero">
+          <div class="success-icon-bubble">✓</div>
+          <h2 class="view-title">Account Created!</h2>
+          <p class="view-subtitle">Your identity is verified and your account is fully secured.</p>
+        </div>
+
+        <div class="success-checklist">
+          <div class="success-check-item">
+            <span class="success-check-icon">✓</span>
+            <span>Work Email verified</span>
+          </div>
+          <div class="success-check-item">
+            <span class="success-check-icon">✓</span>
+            <span>Mobile phone number verified</span>
+          </div>
+          <div class="success-check-item">
+            <span class="success-check-icon">✓</span>
+            <span>Multi-Factor Authentication enabled (<span id="success-mfa-method">Authenticator</span>)</span>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" onclick="app.showView('view-login')">
+          Continue to Login
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: LOGIN (DEFAULT FORM) -->
+      <!-- ========================================== -->
+      <div id="view-login" class="auth-view active">
+        <div class="view-header">
+          <h2 class="view-title">Sign in to SecureID</h2>
+          <p class="view-subtitle">Enter your credentials to access your protected workspace.</p>
+        </div>
+
+        <div id="alert-login" class="alert-banner"></div>
+
+        <form id="form-login" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="login-email">Email or Username</label>
+            <input type="email" id="login-email" class="form-input" placeholder="name@company.com" required autocomplete="username">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required autocomplete="current-password">
+              <button type="button" class="toggle-password-btn" data-target="login-password" title="Toggle password visibility">
+                👁️
+              </button>
+            </div>
+          </div>
+
+          <div class="row-actions">
+            <label class="checkbox-group">
+              <input type="checkbox" id="login-remember">
+              <span>Remember me</span>
+            </label>
+            <button type="button" class="link-btn" onclick="alert('Forgot password simulation: Please register a new account or reset credentials via admin console.')">Forgot password?</button>
+          </div>
+
+          <button type="submit" id="btn-submit-login" class="btn btn-primary">
+            Sign In
+          </button>
+
+          <!-- PLACEHOLDER GOOGLE SIGN-IN BUTTON -->
+          <button type="button" class="btn btn-google" onclick="alert('Google SSO is a placeholder in this IAM demo.')">
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            Continue with Google
+          </button>
+        </form>
+
+        <div class="divider">or</div>
+
+        <p style="text-align: center; font-size: 13px; color: var(--text-secondary);">
+          Don't have an account? 
+          <button type="button" class="link-btn" onclick="app.showView('view-register')">Create an account</button>
+        </p>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: LOGIN MFA OTP VERIFICATION -->
+      <!-- ========================================== -->
+      <div id="view-login-otp" class="auth-view">
+        <div class="view-header">
+          <h2 class="view-title">Two-Step Verification</h2>
+          <p class="view-subtitle" id="login-otp-subtitle">Enter the verification code to complete sign in.</p>
+        </div>
+
+        <div id="alert-login-otp" class="alert-banner"></div>
+
+        <div class="otp-container">
+          <div class="otp-inputs" id="login-otp-boxes">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric" autofocus>
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+            <input type="text" maxlength="1" class="otp-box" inputmode="numeric">
+          </div>
+
+          <div class="otp-meta">
+            <span class="timer-pill">
+              ⏱️ <span id="login-otp-timer">05:00</span>
+            </span>
+            <button type="button" id="btn-resend-login-otp" class="resend-btn" disabled>
+              Resend code in <span id="login-resend-timer">30s</span>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="btn-verify-login-otp" class="btn btn-primary" style="margin-bottom: 12px;">
+          Verify & Sign In
+        </button>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+          <button type="button" class="link-btn" onclick="app.showView('view-login')">← Back to Login</button>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW: AUTHENTICATED DASHBOARD & JWT DEMO -->
+      <!-- ========================================== -->
+      <div id="view-dashboard" class="auth-view">
+        <div class="dash-topbar">
+          <div class="dash-user-info">
+            <div class="user-avatar" id="dash-avatar">U</div>
+            <div>
+              <h3 style="font-size: 16px; font-weight: 700;" id="dash-user-name">User Name</h3>
+              <p style="font-size: 12px; color: var(--text-secondary);" id="dash-user-email">user@company.com</p>
+            </div>
+          </div>
+          <button type="button" id="btn-logout" class="btn btn-secondary" style="width: auto; padding: 0 16px; height: 38px;">
+            Sign Out
+          </button>
+        </div>
+
+        <div class="dash-grid">
+          <!-- Active User Details Card -->
+          <div class="dash-card">
+            <div class="dash-card-title">
+              <span>👤</span> Authenticated User Profile (Session Cookie Auth)
+            </div>
+            <div class="profile-meta-list">
+              <div>
+                <div class="meta-field-label">User ID</div>
+                <div class="meta-field-value" id="meta-user-id">-</div>
+              </div>
+              <div>
+                <div class="meta-field-label">Mobile Number</div>
+                <div class="meta-field-value" id="meta-user-mobile">-</div>
+              </div>
+              <div>
+                <div class="meta-field-label">MFA Method</div>
+                <div class="meta-field-value" id="meta-mfa-method">
+                  <span class="status-badge" style="padding: 2px 8px; font-size: 11px;">Active</span>
+                </div>
+              </div>
+              <div>
+                <div class="meta-field-label">Verification Status</div>
+                <div class="meta-field-value" id="meta-verification-status">Email & Mobile Verified</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Session Auth vs JWT Auth Playground -->
+          <div class="jwt-playground">
+            <div class="dash-card-title" style="color: var(--primary);">
+              <span>⚡</span> JWT Bearer Token vs Session Auth Playground
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+              The current dashboard is authorized via an <strong>HttpOnly, SameSite Session Cookie</strong> (<code>sid</code>).
+              To demonstrate independent <strong>JWT stateless authentication</strong>, issue a JWT token below and call the protected API with <code>Authorization: Bearer &lt;token&gt;</code>.
+            </p>
+
+            <div class="jwt-controls">
+              <button type="button" id="btn-issue-jwt" class="btn btn-primary" style="font-size: 13px;">
+                1. Issue JWT Token (POST /api/token)
+              </button>
+              <button type="button" id="btn-call-protected-jwt" class="btn btn-secondary" style="font-size: 13px;" disabled>
+                2. Call Protected API (GET /api/protected)
+              </button>
+              <button type="button" id="btn-test-invalid-jwt" class="btn btn-outline" style="font-size: 13px;">
+                3. Test Invalid Token (401 Check)
+              </button>
+            </div>
+
+            <div id="jwt-display-container" style="display: none;">
+              <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-top: 10px;">
+                Live Access Token (Stored in JavaScript Memory Variable Only):
+              </div>
+              <div class="code-terminal" id="jwt-token-preview">No token issued yet.</div>
+
+              <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-top: 10px;">
+                API Response Output:
+              </div>
+              <div class="code-terminal" id="jwt-api-response">Click "Call Protected API" to inspect backend payload.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script src="js/app.js"></script>
+</body>
+</html>
