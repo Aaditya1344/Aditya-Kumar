@@ -1,280 +1,157 @@
 /**
- * SECUREID IAM CLIENT CONTROLLER
- * Pure Vanilla JavaScript Application (No frameworks)
- * Manages Dynamic Views, OTP Challenges, Session State & JWT Playground
+ * SECUREID CLIENT CONTROLLER
+ * Pure Vanilla JavaScript implementation matching reference specifications
  */
 
 (function () {
   'use strict';
 
-  class IAMApp {
+  class IAMController {
     constructor() {
-      // In-Memory App State
       this.state = {
         currentUser: null,
-        regChallengeId: null,
         regUserId: null,
-        regEmail: null,
-        regMobile: null,
+        regChallengeId: null,
+        regEmail: 'priya.sharma@email.com',
+        regMobile: '98765 43210',
         regCountryCode: '+91',
-        selectedMfaMethod: 'authenticator',
+        regMfaMethod: 'authenticator',
         totpSecret: null,
         loginChallengeId: null,
-        loginMethod: null,
-        jwtToken: null // Stored strictly in memory, never persisted in localStorage
+        loginMfaMethod: 'email',
+        loginEmail: 'priya.sharma@email.com',
+        jwtToken: null
       };
 
-      this.timers = {};
+      this.activeTimers = {};
       this.init();
     }
 
     init() {
       this.bindEvents();
-      this.setupOtpInputs();
-      this.setupPasswordChecklist();
-      this.checkActiveSession();
+      this.setupOtpInputBoxes();
+      this.setupPasswordValidator();
+      this.checkSession();
     }
 
     /* ==========================================================================
-       VIEW MANAGEMENT & ROUTING
+       CONTAINER & VIEW SWITCHING
        ========================================================================== */
+    showLoginView() {
+      document.getElementById('card-registration-container').style.display = 'none';
+      document.getElementById('card-dashboard-container').style.display = 'none';
+      document.getElementById('card-login-container').style.display = 'flex';
+      this.showView('view-login-form');
+    }
+
+    showRegView() {
+      document.getElementById('card-login-container').style.display = 'none';
+      document.getElementById('card-dashboard-container').style.display = 'none';
+      document.getElementById('card-registration-container').style.display = 'block';
+      this.showView('view-reg-details');
+    }
+
+    showDashboardView() {
+      document.getElementById('card-registration-container').style.display = 'none';
+      document.getElementById('card-login-container').style.display = 'none';
+      document.getElementById('card-dashboard-container').style.display = 'block';
+    }
+
     showView(viewId) {
-      document.querySelectorAll('.auth-view').forEach(view => {
-        view.classList.remove('active');
-      });
+      document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
       const target = document.getElementById(viewId);
       if (target) {
         target.classList.add('active');
-        // Clear old alerts in the new view
-        this.clearAlerts();
-        // Focus first input if available
+        this.updateStepIndicator(viewId);
+        
+        // Auto-focus first input box
         const firstInput = target.querySelector('input:not([type=hidden])');
         if (firstInput) {
-          setTimeout(() => firstInput.focus(), 100);
+          setTimeout(() => firstInput.focus(), 80);
         }
       }
     }
 
-    showAlert(containerId, message, type = 'danger') {
-      const banner = document.getElementById(containerId);
-      if (banner) {
-        banner.className = `alert-banner active alert-${type}`;
-        banner.innerHTML = `<span>${message}</span>`;
-      }
-    }
+    updateStepIndicator(viewId) {
+      const stepTitle = document.getElementById('reg-step-title');
+      const dots = [1, 2, 3, 4, 5].map(n => document.getElementById(`dot-step-${n}`));
 
-    clearAlerts() {
-      document.querySelectorAll('.alert-banner').forEach(banner => {
-        banner.className = 'alert-banner';
-        banner.innerHTML = '';
-      });
-      document.querySelectorAll('.form-input, .otp-box').forEach(input => {
-        input.classList.remove('error');
-      });
-    }
+      dots.forEach(d => { if (d) d.className = 'step-dot'; });
 
-    /* ==========================================================================
-       EVENT BINDINGS & INTERACTIONS
-       ========================================================================== */
-    bindEvents() {
-      // Password Show/Hide toggles
-      document.querySelectorAll('.toggle-password-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const targetId = btn.getAttribute('data-target');
-          const input = document.getElementById(targetId);
-          if (input) {
-            if (input.type === 'password') {
-              input.type = 'text';
-              btn.textContent = '🙈';
-            } else {
-              input.type = 'password';
-              btn.textContent = '👁️';
-            }
-          }
-        });
-      });
-
-      // Registration Form Submit
-      const formRegister = document.getElementById('form-register');
-      if (formRegister) {
-        formRegister.addEventListener('submit', (e) => this.handleRegisterSubmit(e));
-      }
-
-      // Email OTP Verification
-      const btnVerifyEmailOtp = document.getElementById('btn-verify-email-otp');
-      if (btnVerifyEmailOtp) {
-        btnVerifyEmailOtp.addEventListener('click', () => this.handleVerifyEmailOtp());
-      }
-
-      // Resend Email OTP
-      const btnResendEmailOtp = document.getElementById('btn-resend-email-otp');
-      if (btnResendEmailOtp) {
-        btnResendEmailOtp.addEventListener('click', () => this.handleResendEmailOtp());
-      }
-
-      // Mobile Number Change Toggle
-      const btnChangeMobileToggle = document.getElementById('btn-change-mobile-toggle');
-      if (btnChangeMobileToggle) {
-        btnChangeMobileToggle.addEventListener('click', () => {
-          const box = document.getElementById('box-change-mobile');
-          box.style.display = box.style.display === 'none' ? 'block' : 'none';
-        });
-      }
-
-      // Save & Resend Mobile OTP
-      const btnSaveMobile = document.getElementById('btn-save-mobile');
-      if (btnSaveMobile) {
-        btnSaveMobile.addEventListener('click', () => this.handleUpdateMobileAndResend());
-      }
-
-      // Mobile OTP Verification
-      const btnVerifySmsOtp = document.getElementById('btn-verify-sms-otp');
-      if (btnVerifySmsOtp) {
-        btnVerifySmsOtp.addEventListener('click', () => this.handleVerifySmsOtp());
-      }
-
-      // Resend Mobile OTP
-      const btnResendSmsOtp = document.getElementById('btn-resend-sms-otp');
-      if (btnResendSmsOtp) {
-        btnResendSmsOtp.addEventListener('click', () => this.handleResendSmsOtp());
-      }
-
-      // MFA Method Card Selection
-      document.querySelectorAll('.mfa-option-card').forEach(card => {
-        card.addEventListener('click', () => {
-          document.querySelectorAll('.mfa-option-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
-          this.state.selectedMfaMethod = card.getAttribute('data-method');
-        });
-      });
-
-      // Continue MFA Setup
-      const btnContinueMfaSetup = document.getElementById('btn-continue-mfa-setup');
-      if (btnContinueMfaSetup) {
-        btnContinueMfaSetup.addEventListener('click', () => this.handleInitiateMfaSetup());
-      }
-
-      // Authenticator Setup Key Toggle & Copy
-      const btnToggleSetupKey = document.getElementById('btn-toggle-setup-key');
-      if (btnToggleSetupKey) {
-        btnToggleSetupKey.addEventListener('click', () => {
-          const container = document.getElementById('setup-key-container');
-          container.style.display = container.style.display === 'none' ? 'block' : 'none';
-        });
-      }
-
-      const btnCopySecret = document.getElementById('btn-copy-secret');
-      if (btnCopySecret) {
-        btnCopySecret.addEventListener('click', () => {
-          if (this.state.totpSecret) {
-            navigator.clipboard.writeText(this.state.totpSecret).then(() => {
-              btnCopySecret.textContent = 'Copied!';
-              setTimeout(() => btnCopySecret.textContent = 'Copy', 2000);
-            });
-          }
-        });
-      }
-
-      const btnContinueTotpVerify = document.getElementById('btn-continue-totp-verify');
-      if (btnContinueTotpVerify) {
-        btnContinueTotpVerify.addEventListener('click', () => {
-          this.showView('view-register-mfa-verify');
-          this.setupMfaVerifyScreen('authenticator');
-        });
-      }
-
-      // Submit MFA Setup Code Verification
-      const btnSubmitMfaVerify = document.getElementById('btn-submit-mfa-verify');
-      if (btnSubmitMfaVerify) {
-        btnSubmitMfaVerify.addEventListener('click', () => this.handleSubmitMfaVerify());
-      }
-
-      // Login Form Submit
-      const formLogin = document.getElementById('form-login');
-      if (formLogin) {
-        formLogin.addEventListener('submit', (e) => this.handleLoginSubmit(e));
-      }
-
-      // Login OTP Verification
-      const btnVerifyLoginOtp = document.getElementById('btn-verify-login-otp');
-      if (btnVerifyLoginOtp) {
-        btnVerifyLoginOtp.addEventListener('click', () => this.handleVerifyLoginOtp());
-      }
-
-      // Resend Login OTP
-      const btnResendLoginOtp = document.getElementById('btn-resend-login-otp');
-      if (btnResendLoginOtp) {
-        btnResendLoginOtp.addEventListener('click', () => this.handleResendLoginOtp());
-      }
-
-      // Logout
-      const btnLogout = document.getElementById('btn-logout');
-      if (btnLogout) {
-        btnLogout.addEventListener('click', () => this.handleLogout());
-      }
-
-      // JWT Demo Playground
-      const btnIssueJwt = document.getElementById('btn-issue-jwt');
-      if (btnIssueJwt) {
-        btnIssueJwt.addEventListener('click', () => this.handleIssueJwt());
-      }
-
-      const btnCallProtectedJwt = document.getElementById('btn-call-protected-jwt');
-      if (btnCallProtectedJwt) {
-        btnCallProtectedJwt.addEventListener('click', () => this.handleCallProtectedJwt());
-      }
-
-      const btnTestInvalidJwt = document.getElementById('btn-test-invalid-jwt');
-      if (btnTestInvalidJwt) {
-        btnTestInvalidJwt.addEventListener('click', () => this.handleTestInvalidJwt());
+      if (viewId === 'view-reg-details') {
+        if (stepTitle) stepTitle.textContent = '1. Register - Details';
+        if (dots[0]) dots[0].className = 'step-dot active';
+      } else if (viewId === 'view-reg-email-otp') {
+        if (stepTitle) stepTitle.textContent = '2. Email Verification - OTP';
+        if (dots[0]) dots[0].className = 'step-dot completed';
+        if (dots[1]) dots[1].className = 'step-dot active';
+      } else if (viewId === 'view-reg-sms-otp') {
+        if (stepTitle) stepTitle.textContent = '3. Mobile Verification - OTP';
+        if (dots[0]) dots[0].className = 'step-dot completed';
+        if (dots[1]) dots[1].className = 'step-dot completed';
+        if (dots[2]) dots[2].className = 'step-dot active';
+      } else if (viewId === 'view-reg-mfa-setup' || viewId === 'view-reg-auth-setup') {
+        if (stepTitle) stepTitle.textContent = '4. Authenticator Setup';
+        if (dots[0]) dots[0].className = 'step-dot completed';
+        if (dots[1]) dots[1].className = 'step-dot completed';
+        if (dots[2]) dots[2].className = 'step-dot completed';
+        if (dots[3]) dots[3].className = 'step-dot active';
+      } else if (viewId === 'view-reg-mfa-verify' || viewId === 'view-reg-success') {
+        if (stepTitle) stepTitle.textContent = '5. Registration Success';
+        dots.forEach(d => { if (d) d.className = 'step-dot completed'; });
+        if (dots[4]) dots[4].className = 'step-dot active';
       }
     }
 
     /* ==========================================================================
-       6-DIGIT OTP BOXES HELPER
+       6-DIGIT OTP BOXES HANDLER
        ========================================================================== */
-    setupOtpInputs() {
-      const boxGroups = ['email-otp-boxes', 'sms-otp-boxes', 'mfa-verify-boxes', 'login-otp-boxes'];
+    setupOtpInputBoxes() {
+      const containerIds = ['boxes-reg-email', 'boxes-reg-sms', 'boxes-reg-mfa-verify', 'boxes-login-otp'];
 
-      boxGroups.forEach(groupId => {
-        const container = document.getElementById(groupId);
+      containerIds.forEach(id => {
+        const container = document.getElementById(id);
         if (!container) return;
-        const inputs = container.querySelectorAll('.otp-box');
+        const inputs = container.querySelectorAll('.otp-digit-box');
 
-        inputs.forEach((input, index) => {
-          // Handle Single Digit Key Typing
+        inputs.forEach((input, idx) => {
           input.addEventListener('input', (e) => {
             const val = e.target.value.replace(/\D/g, '');
             e.target.value = val ? val[0] : '';
+            if (val && idx < inputs.length - 1) {
+              inputs[idx + 1].focus();
+            }
 
-            if (val && index < inputs.length - 1) {
-              inputs[index + 1].focus();
+            // Auto-trigger verify when all 6 digits entered
+            const fullCode = this.getOtpCode(id);
+            if (fullCode.length === 6) {
+              this.handleAutoSubmitOtp(id);
             }
           });
 
-          // Handle Backspace & Arrow Navigation
           input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !input.value && index > 0) {
-              inputs[index - 1].focus();
-            } else if (e.key === 'ArrowLeft' && index > 0) {
-              inputs[index - 1].focus();
-            } else if (e.key === 'ArrowRight' && index < inputs.length - 1) {
-              inputs[index + 1].focus();
+            if (e.key === 'Backspace' && !input.value && idx > 0) {
+              inputs[idx - 1].focus();
+            } else if (e.key === 'ArrowLeft' && idx > 0) {
+              inputs[idx - 1].focus();
+            } else if (e.key === 'ArrowRight' && idx < inputs.length - 1) {
+              inputs[idx + 1].focus();
             }
           });
 
-          // Handle Clipboard Paste (e.g. pasting full 6 digits)
           input.addEventListener('paste', (e) => {
             e.preventDefault();
-            const pastedData = (e.clipboardData || window.clipboardData).getData('text').trim();
-            const digits = pastedData.replace(/\D/g, '').slice(0, 6);
+            const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+            const digits = text.replace(/\D/g, '').slice(0, 6);
             if (digits) {
               for (let i = 0; i < inputs.length; i++) {
                 inputs[i].value = digits[i] || '';
               }
-              const lastFilledIdx = Math.min(digits.length, inputs.length) - 1;
-              if (lastFilledIdx >= 0 && lastFilledIdx < inputs.length) {
-                inputs[lastFilledIdx].focus();
+              const lastIdx = Math.min(digits.length, inputs.length) - 1;
+              if (lastIdx >= 0) inputs[lastIdx].focus();
+
+              if (digits.length === 6) {
+                this.handleAutoSubmitOtp(id);
               }
             }
           });
@@ -282,136 +159,250 @@
       });
     }
 
-    getOtpValue(groupId) {
-      const container = document.getElementById(groupId);
+    getOtpCode(containerId) {
+      const container = document.getElementById(containerId);
       if (!container) return '';
-      const inputs = container.querySelectorAll('.otp-box');
       let code = '';
-      inputs.forEach(input => {
-        code += input.value.trim();
-      });
+      container.querySelectorAll('.otp-digit-box').forEach(b => code += b.value.trim());
       return code;
     }
 
-    clearOtpBoxes(groupId) {
-      const container = document.getElementById(groupId);
+    clearOtpBoxes(containerId) {
+      const container = document.getElementById(containerId);
       if (!container) return;
-      container.querySelectorAll('.otp-box').forEach(input => {
-        input.value = '';
-        input.classList.remove('error');
-        input.disabled = false;
+      container.querySelectorAll('.otp-digit-box').forEach(b => {
+        b.value = '';
+        b.classList.remove('error');
+        b.disabled = false;
       });
-      const first = container.querySelector('.otp-box');
+      const first = container.querySelector('.otp-digit-box');
       if (first) first.focus();
     }
 
-    setOtpBoxesDisabled(groupId, disabled) {
-      const container = document.getElementById(groupId);
+    highlightOtpError(containerId, lastOnly = true) {
+      const container = document.getElementById(containerId);
       if (!container) return;
-      container.querySelectorAll('.otp-box').forEach(input => {
-        input.disabled = disabled;
-      });
-    }
-
-    highlightOtpError(groupId) {
-      const container = document.getElementById(groupId);
-      if (!container) return;
-      const inputs = container.querySelectorAll('.otp-box');
-      inputs.forEach(input => {
-        input.classList.add('error');
-      });
-      // Focus on first box for retry
-      if (inputs.length > 0) {
-        inputs[0].focus();
-      }
-    }
-
-    /* ==========================================================================
-       PASSWORD CHECKLIST VALIDATION
-       ========================================================================== */
-    setupPasswordChecklist() {
-      const passwordInput = document.getElementById('reg-password');
-      if (!passwordInput) return;
-
-      passwordInput.addEventListener('input', () => {
-        const val = passwordInput.value;
-        const reqLength = document.getElementById('req-length');
-        const reqUpper = document.getElementById('req-upper');
-        const reqNumber = document.getElementById('req-number');
-        const reqSpecial = document.getElementById('req-special');
-
-        this.updateReqItem(reqLength, val.length >= 8);
-        this.updateReqItem(reqUpper, /[A-Z]/.test(val));
-        this.updateReqItem(reqNumber, /[0-9]/.test(val));
-        this.updateReqItem(reqSpecial, /[^A-Za-z0-9]/.test(val));
-      });
-    }
-
-    updateReqItem(element, isValid) {
-      if (!element) return;
-      if (isValid) {
-        element.classList.add('valid');
-        element.querySelector('.req-icon').textContent = '✓';
+      const boxes = container.querySelectorAll('.otp-digit-box');
+      if (lastOnly && boxes.length > 0) {
+        boxes[boxes.length - 1].classList.add('error');
       } else {
-        element.classList.remove('valid');
-        element.querySelector('.req-icon').textContent = '○';
+        boxes.forEach(b => b.classList.add('error'));
       }
     }
 
     /* ==========================================================================
        TIMERS & COUNTDOWNS
        ========================================================================== */
-    startExpiryTimer(timerElementId, durationSeconds, onExpired) {
-      if (this.timers[timerElementId]) {
-        clearInterval(this.timers[timerElementId]);
+    startExpiryTimer(elementId, seconds, onExpired) {
+      if (this.activeTimers[elementId]) {
+        clearInterval(this.activeTimers[elementId]);
       }
 
-      let remaining = durationSeconds;
-      const element = document.getElementById(timerElementId);
+      let remaining = seconds;
+      const el = document.getElementById(elementId);
 
-      const render = () => {
-        const minutes = Math.floor(remaining / 60);
-        const seconds = remaining % 60;
-        if (element) {
-          element.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
+      const tick = () => {
+        const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const ss = String(remaining % 60).padStart(2, '0');
+        if (el) el.textContent = `${mm}:${ss}`;
+
         if (remaining <= 0) {
-          clearInterval(this.timers[timerElementId]);
+          clearInterval(this.activeTimers[elementId]);
           if (onExpired) onExpired();
         }
         remaining--;
       };
 
-      render();
-      this.timers[timerElementId] = setInterval(render, 1000);
+      tick();
+      this.activeTimers[elementId] = setInterval(tick, 1000);
     }
 
-    startCooldownTimer(buttonId, timerSpanId, cooldownSeconds = 30) {
-      const btn = document.getElementById(buttonId);
-      const span = document.getElementById(timerSpanId);
+    startCooldownTimer(btnId, spanId, cooldownSec = 25) {
+      const btn = document.getElementById(btnId);
+      const span = document.getElementById(spanId);
       if (!btn) return;
 
       btn.disabled = true;
-      let remaining = cooldownSeconds;
+      let remaining = cooldownSec;
 
       const interval = setInterval(() => {
         remaining--;
-        if (span) span.textContent = `${remaining}s`;
+        const ss = String(remaining).padStart(2, '0');
+        if (span) span.textContent = `00:${ss}`;
+
         if (remaining <= 0) {
           clearInterval(interval);
           btn.disabled = false;
-          btn.textContent = 'Resend Code';
+          if (span) span.textContent = '00:00';
+          btn.textContent = 'Resend code';
         }
       }, 1000);
     }
 
     /* ==========================================================================
-       REGISTRATION JOURNEY IMPLEMENTATION
+       PASSWORD VALIDATION CHECKLIST
+       ========================================================================== */
+    setupPasswordValidator() {
+      const pwdInput = document.getElementById('reg-password');
+      if (!pwdInput) return;
+
+      pwdInput.addEventListener('input', () => {
+        const val = pwdInput.value;
+        this.setCheckItem('pwd-req-len', val.length >= 8);
+        this.setCheckItem('pwd-req-upper', /[A-Z]/.test(val));
+        this.setCheckItem('pwd-req-num', /[0-9]/.test(val));
+        this.setCheckItem('pwd-req-spec', /[^A-Za-z0-9]/.test(val));
+      });
+    }
+
+    setCheckItem(id, valid) {
+      const el = document.getElementById(id);
+      if (el) {
+        if (valid) el.classList.add('valid');
+        else el.classList.remove('valid');
+      }
+    }
+
+    /* ==========================================================================
+       EVENT BINDINGS
+       ========================================================================== */
+    bindEvents() {
+      // Password toggles
+      document.querySelectorAll('.toggle-password-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.getAttribute('data-target');
+          const input = document.getElementById(targetId);
+          if (input) {
+            input.type = input.type === 'password' ? 'text' : 'password';
+          }
+        });
+      });
+
+      // 1. Register Details Form
+      const formReg = document.getElementById('form-register-details');
+      if (formReg) {
+        formReg.addEventListener('submit', (e) => this.handleRegisterSubmit(e));
+      }
+
+      // Resend Email OTP
+      const btnResendRegEmail = document.getElementById('btn-resend-reg-email');
+      if (btnResendRegEmail) {
+        btnResendRegEmail.addEventListener('click', () => this.handleResendEmailOtp());
+      }
+      const btnResendNewEmail = document.getElementById('btn-resend-new-email');
+      if (btnResendNewEmail) {
+        btnResendNewEmail.addEventListener('click', () => this.handleResendEmailOtp());
+      }
+
+      // Inline Mobile Update Toggle
+      const linkChangePhone = document.getElementById('link-change-mobile-toggle');
+      if (linkChangePhone) {
+        linkChangePhone.addEventListener('click', (e) => {
+          e.preventDefault();
+          const box = document.getElementById('box-inline-change-phone');
+          box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        });
+      }
+
+      const btnSavePhone = document.getElementById('btn-save-mobile-val');
+      if (btnSavePhone) {
+        btnSavePhone.addEventListener('click', () => this.handleUpdateMobileAndResend());
+      }
+
+      // Resend SMS OTP
+      const btnResendRegSms = document.getElementById('btn-resend-reg-sms');
+      if (btnResendRegSms) {
+        btnResendRegSms.addEventListener('click', () => this.handleResendSmsOtp());
+      }
+      const btnResendNewSms = document.getElementById('btn-resend-new-sms');
+      if (btnResendNewSms) {
+        btnResendNewSms.addEventListener('click', () => this.handleResendSmsOtp());
+      }
+
+      // MFA Method Card Selection
+      document.querySelectorAll('.mfa-card-item').forEach(card => {
+        card.addEventListener('click', () => {
+          const parent = card.parentElement;
+          parent.querySelectorAll('.mfa-card-item').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          const method = card.getAttribute('data-method');
+          if (parent.closest('#view-reg-mfa-setup')) {
+            this.state.regMfaMethod = method;
+          } else {
+            this.state.loginMfaMethod = method;
+          }
+        });
+      });
+
+      // Continue MFA Choice (Register)
+      const btnContinueMfaChoice = document.getElementById('btn-continue-mfa-choice');
+      if (btnContinueMfaChoice) {
+        btnContinueMfaChoice.addEventListener('click', () => this.handleSetupMfa());
+      }
+
+      // Authenticator Secret Toggle
+      const btnToggleKey = document.getElementById('btn-toggle-setup-key');
+      if (btnToggleKey) {
+        btnToggleKey.addEventListener('click', (e) => {
+          e.preventDefault();
+          const box = document.getElementById('box-secret-key');
+          box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        });
+      }
+
+      const btnContinueToMfaVerify = document.getElementById('btn-continue-to-mfa-verify');
+      if (btnContinueToMfaVerify) {
+        btnContinueToMfaVerify.addEventListener('click', () => {
+          this.showView('view-reg-mfa-verify');
+          this.startExpiryTimer('timer-reg-mfa', 28);
+        });
+      }
+
+      // 2. Login Form
+      const formLogin = document.getElementById('form-login-credentials');
+      if (formLogin) {
+        formLogin.addEventListener('submit', (e) => this.handleLoginSubmit(e));
+      }
+
+      // Continue Login Method
+      const btnLoginMethodContinue = document.getElementById('btn-login-method-continue');
+      if (btnLoginMethodContinue) {
+        btnLoginMethodContinue.addEventListener('click', () => {
+          this.showView('view-login-otp-screen');
+        });
+      }
+
+      // Resend Login OTP
+      const btnResendLogin = document.getElementById('btn-resend-login-otp');
+      if (btnResendLogin) {
+        btnResendLogin.addEventListener('click', () => this.handleResendLoginOtp());
+      }
+      const btnResendExpiredLogin = document.getElementById('btn-resend-expired-login');
+      if (btnResendExpiredLogin) {
+        btnResendExpiredLogin.addEventListener('click', () => this.handleResendLoginOtp());
+      }
+    }
+
+    /* ==========================================================================
+       AUTO SUBMIT OTP ON 6 DIGITS
+       ========================================================================== */
+    handleAutoSubmitOtp(containerId) {
+      if (containerId === 'boxes-reg-email') {
+        this.handleVerifyEmailOtp();
+      } else if (containerId === 'boxes-reg-sms') {
+        this.handleVerifySmsOtp();
+      } else if (containerId === 'boxes-reg-mfa-verify') {
+        this.handleVerifyMfaSetup();
+      } else if (containerId === 'boxes-login-otp') {
+        this.handleVerifyLoginOtp();
+      }
+    }
+
+    /* ==========================================================================
+       REGISTRATION FLOW ACTIONS
        ========================================================================== */
     async handleRegisterSubmit(e) {
       e.preventDefault();
-      this.clearAlerts();
-
       const fullName = document.getElementById('reg-fullname').value.trim();
       const email = document.getElementById('reg-email').value.trim();
       const mobile = document.getElementById('reg-mobile').value.trim();
@@ -419,663 +410,417 @@
       const password = document.getElementById('reg-password').value;
       const terms = document.getElementById('reg-terms').checked;
 
-      if (!fullName || !email || !mobile || !password) {
-        this.showAlert('global-alert', 'Please complete all required fields.');
+      if (!fullName || !email || !mobile || !password || !terms) {
+        alert('Please complete all fields and accept the Terms.');
         return;
       }
-
-      if (!terms) {
-        this.showAlert('global-alert', 'You must agree to the Terms of Service to create an account.');
-        return;
-      }
-
-      const submitBtn = document.getElementById('btn-submit-register');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating account...';
 
       try {
-        const response = await fetch('/api/register', {
+        const res = await fetch('/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fullName, email, mobile, countryCode, password, terms })
         });
+        const data = await res.json();
 
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          this.showAlert('global-alert', data.error || 'Registration failed.');
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Create Account';
+        if (!res.ok || !data.success) {
+          alert(data.error || 'Registration failed');
           return;
         }
 
-        // Store registration challenge state
         this.state.regChallengeId = data.challengeId;
         this.state.regEmail = data.email;
-        this.state.regMobile = mobile;
-        this.state.regCountryCode = countryCode;
+        this.state.regMobile = `${countryCode} ${mobile}`;
 
-        // Transition to Registration Step 2 (Email OTP)
-        document.getElementById('display-reg-email').textContent = data.email;
-        this.clearOtpBoxes('email-otp-boxes');
-        this.showView('view-register-email-otp');
+        document.getElementById('label-email-dest').textContent = data.email;
+        this.clearOtpBoxes('boxes-reg-email');
+        this.showView('view-reg-email-otp');
 
-        // Start Expiry and Cooldown Timers
-        this.startExpiryTimer('email-otp-timer', data.expiresIn || 300, () => {
-          this.clearOtpBoxes('email-otp-boxes');
-          this.showAlert('alert-email-otp', 'This code has expired. Please request a new code.', 'warning');
-          const resendBtn = document.getElementById('btn-resend-email-otp');
-          if (resendBtn) {
-            resendBtn.disabled = false;
-            resendBtn.textContent = 'Resend New Code';
-          }
+        // Start 02:45 Expiry and 00:25 Cooldown
+        this.startExpiryTimer('timer-reg-email', 165, () => {
+          document.getElementById('badge-email-otp').className = 'icon-badge icon-badge-red';
+          document.getElementById('expired-reg-email-banner').classList.add('active');
+          document.getElementById('btn-resend-new-email').style.display = 'block';
+          this.clearOtpBoxes('boxes-reg-email');
         });
-
-        this.startCooldownTimer('btn-resend-email-otp', 'email-resend-timer', 30);
+        this.startCooldownTimer('btn-resend-reg-email', 'cooldown-reg-email', 25);
       } catch (err) {
-        console.error('Registration Error:', err);
-        this.showAlert('global-alert', 'Network error occurred. Please try again.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Create Account';
+        alert('Registration request error');
       }
     }
 
     async handleVerifyEmailOtp() {
-      const otp = this.getOtpValue('email-otp-boxes');
-      if (otp.length !== 6) {
-        this.showAlert('alert-email-otp', 'Please enter all 6 digits of the verification code.');
-        return;
-      }
-
-      const verifyBtn = document.getElementById('btn-verify-email-otp');
-      verifyBtn.disabled = true;
-      verifyBtn.textContent = 'Verifying...';
+      const otp = this.getOtpCode('boxes-reg-email');
+      if (otp.length !== 6) return;
 
       try {
-        const response = await fetch('/api/verify-email-otp', {
+        const res = await fetch('/api/verify-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.regChallengeId,
-            otp
-          })
+          body: JSON.stringify({ challengeId: this.state.regChallengeId, otp })
         });
+        const data = await res.json();
 
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          this.highlightOtpError('email-otp-boxes');
-
-          if (data.maxAttemptsReached) {
-            this.setOtpBoxesDisabled('email-otp-boxes', true);
-            this.showAlert('alert-email-otp', 'Maximum attempts reached. Please request a new code.', 'danger');
-            const resendBtn = document.getElementById('btn-resend-email-otp');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.textContent = 'Resend New Code';
-            }
-          } else if (data.expired) {
-            this.clearOtpBoxes('email-otp-boxes');
-            this.showAlert('alert-email-otp', 'This code has expired.', 'warning');
-            const resendBtn = document.getElementById('btn-resend-email-otp');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.textContent = 'Resend New Code';
-            }
-          } else {
-            const remaining = data.attemptsRemaining !== undefined ? ` (${data.attemptsRemaining} attempts remaining)` : '';
-            this.showAlert('alert-email-otp', `Incorrect code. Please try again.${remaining}`, 'danger');
+        if (!res.ok || !data.success) {
+          // Highlight Wrong Code State
+          document.getElementById('badge-email-otp').className = 'icon-badge icon-badge-red';
+          this.highlightOtpError('boxes-reg-email', true);
+          const errEl = document.getElementById('error-reg-email-otp');
+          errEl.classList.add('active');
+          const attEl = document.getElementById('attempts-reg-email');
+          if (attEl && data.attemptsRemaining !== undefined) {
+            attEl.textContent = `You have ${data.attemptsRemaining} attempt${data.attemptsRemaining === 1 ? '' : 's'} left.`;
           }
           return;
         }
 
-        // Successfully Verified Email -> Transition to Step 3 (Mobile OTP)
+        // Email Verified -> Transition to Mobile OTP
         this.state.regUserId = data.userId;
         this.state.regChallengeId = data.challengeId;
-        this.state.regMobile = data.mobile;
-        this.state.regCountryCode = data.countryCode;
+        document.getElementById('label-sms-dest').textContent = `${data.countryCode} ${data.mobile}`;
 
-        document.getElementById('display-reg-mobile').textContent = `${data.countryCode} ${data.mobile}`;
-        this.clearOtpBoxes('sms-otp-boxes');
-        this.showView('view-register-sms-otp');
+        this.clearOtpBoxes('boxes-reg-sms');
+        this.showView('view-reg-sms-otp');
 
-        this.startExpiryTimer('sms-otp-timer', data.expiresIn || 300, () => {
-          this.clearOtpBoxes('sms-otp-boxes');
-          this.showAlert('alert-sms-otp', 'This code has expired.', 'warning');
-          const resendBtn = document.getElementById('btn-resend-sms-otp');
-          if (resendBtn) {
-            resendBtn.disabled = false;
-            resendBtn.textContent = 'Resend New Code';
-          }
+        this.startExpiryTimer('timer-reg-sms', 165, () => {
+          document.getElementById('badge-sms-otp').className = 'icon-badge icon-badge-red';
+          document.getElementById('btn-resend-new-sms').style.display = 'block';
+          this.clearOtpBoxes('boxes-reg-sms');
         });
-
-        this.startCooldownTimer('btn-resend-sms-otp', 'sms-resend-timer', 30);
+        this.startCooldownTimer('btn-resend-reg-sms', 'cooldown-reg-sms', 25);
       } catch (err) {
-        console.error('Email OTP verify error:', err);
-        this.showAlert('alert-email-otp', 'Failed to verify email OTP.');
-      } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = 'Verify Email Code';
+        console.error(err);
       }
     }
 
     async handleResendEmailOtp() {
       try {
-        const response = await fetch('/api/send-email-otp', {
+        const res = await fetch('/api/send-email-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.regChallengeId,
-            email: this.state.regEmail,
-            userId: this.state.regUserId
-          })
+          body: JSON.stringify({ challengeId: this.state.regChallengeId, email: this.state.regEmail, userId: this.state.regUserId })
         });
-
-        const data = await response.json();
+        const data = await res.json();
         if (data.success) {
           this.state.regChallengeId = data.challengeId;
-          this.clearOtpBoxes('email-otp-boxes');
-          this.showAlert('alert-email-otp', 'A new verification code has been simulated and sent!', 'info');
-          this.startExpiryTimer('email-otp-timer', data.expiresIn || 300);
-          this.startCooldownTimer('btn-resend-email-otp', 'email-resend-timer', 30);
+          document.getElementById('badge-email-otp').className = 'icon-badge icon-badge-blue';
+          document.getElementById('error-reg-email-otp').classList.remove('active');
+          document.getElementById('expired-reg-email-banner').classList.remove('active');
+          document.getElementById('btn-resend-new-email').style.display = 'none';
+          this.clearOtpBoxes('boxes-reg-email');
+
+          this.startExpiryTimer('timer-reg-email', 165);
+          this.startCooldownTimer('btn-resend-reg-email', 'cooldown-reg-email', 25);
         }
-      } catch (err) {
-        this.showAlert('alert-email-otp', 'Failed to resend email code.');
-      }
-    }
-
-    async handleUpdateMobileAndResend() {
-      const newMobile = document.getElementById('input-update-mobile').value.trim();
-      if (!newMobile) {
-        this.showAlert('alert-sms-otp', 'Please enter a valid mobile number.');
-        return;
-      }
-
-      this.state.regMobile = newMobile;
-      document.getElementById('display-reg-mobile').textContent = `${this.state.regCountryCode} ${newMobile}`;
-      document.getElementById('box-change-mobile').style.display = 'none';
-
-      await this.handleResendSmsOtp(newMobile);
-    }
-
-    async handleResendSmsOtp(updatedMobile = null) {
-      try {
-        const response = await fetch('/api/send-sms-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.regChallengeId,
-            userId: this.state.regUserId,
-            mobile: updatedMobile || this.state.regMobile,
-            countryCode: this.state.regCountryCode
-          })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          this.state.regChallengeId = data.challengeId;
-          this.clearOtpBoxes('sms-otp-boxes');
-          this.showAlert('alert-sms-otp', 'A new SMS code has been simulated and sent!', 'info');
-          this.startExpiryTimer('sms-otp-timer', data.expiresIn || 300);
-          this.startCooldownTimer('btn-resend-sms-otp', 'sms-resend-timer', 30);
-        }
-      } catch (err) {
-        this.showAlert('alert-sms-otp', 'Failed to resend SMS code.');
-      }
+      } catch (e) { alert('Resend failed'); }
     }
 
     async handleVerifySmsOtp() {
-      const otp = this.getOtpValue('sms-otp-boxes');
-      if (otp.length !== 6) {
-        this.showAlert('alert-sms-otp', 'Please enter all 6 digits of the SMS code.');
-        return;
-      }
-
-      const verifyBtn = document.getElementById('btn-verify-sms-otp');
-      verifyBtn.disabled = true;
-      verifyBtn.textContent = 'Verifying...';
+      const otp = this.getOtpCode('boxes-reg-sms');
+      if (otp.length !== 6) return;
 
       try {
-        const response = await fetch('/api/verify-sms-otp', {
+        const res = await fetch('/api/verify-sms-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.regChallengeId,
-            otp
-          })
+          body: JSON.stringify({ challengeId: this.state.regChallengeId, otp })
         });
+        const data = await res.json();
 
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          this.highlightOtpError('sms-otp-boxes');
+        if (!res.ok || !data.success) {
+          document.getElementById('badge-sms-otp').className = 'icon-badge icon-badge-red';
+          this.highlightOtpError('boxes-reg-sms', true);
 
           if (data.maxAttemptsReached) {
-            this.setOtpBoxesDisabled('sms-otp-boxes', true);
-            this.showAlert('alert-sms-otp', 'Maximum attempts reached. Please request a new code.', 'danger');
-            const resendBtn = document.getElementById('btn-resend-sms-otp');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.textContent = 'Resend New Code';
-            }
-          } else if (data.expired) {
-            this.clearOtpBoxes('sms-otp-boxes');
-            this.showAlert('alert-sms-otp', 'This code has expired.', 'warning');
-            const resendBtn = document.getElementById('btn-resend-sms-otp');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.textContent = 'Resend New Code';
-            }
+            document.getElementById('max-attempts-sms-banner').classList.add('active');
+            document.getElementById('btn-resend-new-sms').style.display = 'block';
           } else {
-            const remaining = data.attemptsRemaining !== undefined ? ` (${data.attemptsRemaining} attempts remaining)` : '';
-            this.showAlert('alert-sms-otp', `Incorrect code. Please try again.${remaining}`, 'danger');
+            const errEl = document.getElementById('error-reg-sms-otp');
+            errEl.classList.add('active');
+            const attEl = document.getElementById('attempts-reg-sms');
+            if (attEl && data.attemptsRemaining !== undefined) {
+              attEl.textContent = `You have ${data.attemptsRemaining} attempt${data.attemptsRemaining === 1 ? '' : 's'} left.`;
+            }
           }
           return;
         }
 
-        // Successfully Verified Mobile -> Transition to Step 4 (MFA Setup Choice)
-        this.showView('view-register-mfa-setup');
-      } catch (err) {
-        console.error('SMS OTP verify error:', err);
-        this.showAlert('alert-sms-otp', 'Failed to verify SMS OTP.');
-      } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = 'Verify Mobile Code';
-      }
+        // SMS Verified -> Move to Step 4 (Set Up MFA)
+        this.showView('view-reg-mfa-setup');
+      } catch (err) { console.error(err); }
     }
 
-    async handleInitiateMfaSetup() {
-      const method = this.state.selectedMfaMethod;
-      const btn = document.getElementById('btn-continue-mfa-setup');
-      btn.disabled = true;
-      btn.textContent = 'Setting up...';
+    async handleUpdateMobileAndResend() {
+      const newPhone = document.getElementById('input-update-mobile-val').value.trim();
+      if (!newPhone) return;
+      this.state.regMobile = newPhone;
+      document.getElementById('label-sms-dest').textContent = newPhone;
+      document.getElementById('box-inline-change-phone').style.display = 'none';
+      await this.handleResendSmsOtp(newPhone);
+    }
 
+    async handleResendSmsOtp(phoneVal = null) {
       try {
-        const response = await fetch('/api/setup-mfa', {
+        const res = await fetch('/api/send-sms-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: this.state.regUserId,
-            method
-          })
+          body: JSON.stringify({ challengeId: this.state.regChallengeId, userId: this.state.regUserId, mobile: phoneVal || this.state.regMobile })
         });
+        const data = await res.json();
+        if (data.success) {
+          this.state.regChallengeId = data.challengeId;
+          document.getElementById('badge-sms-otp').className = 'icon-badge icon-badge-green';
+          document.getElementById('error-reg-sms-otp').classList.remove('active');
+          document.getElementById('max-attempts-sms-banner').classList.remove('active');
+          document.getElementById('btn-resend-new-sms').style.display = 'none';
+          this.clearOtpBoxes('boxes-reg-sms');
 
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          this.showAlert('global-alert', data.error || 'Failed to setup MFA.');
+          this.startExpiryTimer('timer-reg-sms', 165);
+          this.startCooldownTimer('btn-resend-reg-sms', 'cooldown-reg-sms', 25);
+        }
+      } catch (e) { alert('Resend failed'); }
+    }
+
+    async handleSetupMfa() {
+      const method = this.state.regMfaMethod;
+      try {
+        const res = await fetch('/api/setup-mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: this.state.regUserId, method })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          this.state.regChallengeId = data.challengeId;
+          if (method === 'authenticator') {
+            this.state.totpSecret = data.secret;
+            document.getElementById('reg-qr-img').src = data.qrCodeUrl;
+            document.getElementById('reg-secret-key-text').textContent = data.secret;
+            this.showView('view-reg-auth-setup');
+          } else {
+            this.showView('view-reg-mfa-verify');
+            document.getElementById('subtitle-mfa-verify').textContent = `Enter the 6-digit code sent to ${data.destination}`;
+            this.startExpiryTimer('timer-reg-mfa', 28);
+          }
+        }
+      } catch (e) { alert('MFA setup error'); }
+    }
+
+    async handleVerifyMfaSetup() {
+      const otp = this.getOtpCode('boxes-reg-mfa-verify');
+      if (otp.length !== 6) return;
+
+      try {
+        const res = await fetch('/api/verify-mfa-setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challengeId: this.state.regChallengeId, otp })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          document.getElementById('badge-mfa-verify').className = 'icon-badge icon-badge-red';
+          this.highlightOtpError('boxes-reg-mfa-verify', false);
+          document.getElementById('error-reg-mfa-otp').classList.add('active');
           return;
         }
 
-        this.state.regChallengeId = data.challengeId;
-
-        if (method === 'authenticator') {
-          // Display QR Code & Setup Secret
-          this.state.totpSecret = data.secret;
-          document.getElementById('totp-qr-image').src = data.qrCodeUrl;
-          document.getElementById('totp-secret-key').textContent = data.secret;
-          this.showView('view-register-authenticator-setup');
-        } else {
-          // SMS or Email direct verification
-          this.showView('view-register-mfa-verify');
-          this.setupMfaVerifyScreen(method, data.destination);
-        }
-      } catch (err) {
-        console.error('MFA setup error:', err);
-        this.showAlert('global-alert', 'Failed to configure MFA method.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Continue';
-      }
-    }
-
-    setupMfaVerifyScreen(method, destination = '') {
-      const title = document.getElementById('mfa-verify-title');
-      const subtitle = document.getElementById('mfa-verify-subtitle');
-      const resendBtn = document.getElementById('btn-resend-mfa-verify');
-
-      this.clearOtpBoxes('mfa-verify-boxes');
-
-      if (method === 'authenticator') {
-        title.textContent = 'Verify Authenticator App';
-        subtitle.textContent = 'Enter the 6-digit verification code from your Authenticator app.';
-        resendBtn.style.display = 'none';
-        this.startExpiryTimer('mfa-verify-timer', 600);
-      } else if (method === 'sms') {
-        title.textContent = 'Verify SMS Code';
-        subtitle.textContent = `Enter the 6-digit code sent to ${destination || this.state.regMobile}.`;
-        resendBtn.style.display = 'inline-block';
-        this.startExpiryTimer('mfa-verify-timer', 300);
-        this.startCooldownTimer('btn-resend-mfa-verify', null, 30);
-      } else {
-        title.textContent = 'Verify Email Code';
-        subtitle.textContent = `Enter the 6-digit code sent to ${destination || this.state.regEmail}.`;
-        resendBtn.style.display = 'inline-block';
-        this.startExpiryTimer('mfa-verify-timer', 300);
-        this.startCooldownTimer('btn-resend-mfa-verify', null, 30);
-      }
-    }
-
-    async handleSubmitMfaVerify() {
-      const otp = this.getOtpValue('mfa-verify-boxes');
-      if (otp.length !== 6) {
-        this.showAlert('alert-mfa-verify', 'Please enter the 6-digit verification code.');
-        return;
-      }
-
-      const submitBtn = document.getElementById('btn-submit-mfa-verify');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Verifying...';
-
-      try {
-        const response = await fetch('/api/verify-mfa-setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.regChallengeId,
-            otp
-          })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          this.highlightOtpError('mfa-verify-boxes');
-          const remaining = data.attemptsRemaining !== undefined ? ` (${data.attemptsRemaining} attempts remaining)` : '';
-          this.showAlert('alert-mfa-verify', `${data.error || 'Incorrect code.'}${remaining}`, 'danger');
-          return;
-        }
-
-        // Successfully Registered! Transition to Step 7 (Success Screen)
-        const methodName = data.user.mfaMethod === 'authenticator'
-          ? 'Authenticator App (TOTP)'
-          : data.user.mfaMethod === 'sms'
-          ? 'SMS OTP'
-          : 'Email OTP';
-
-        document.getElementById('success-mfa-method').textContent = methodName;
-        this.showView('view-register-success');
-      } catch (err) {
-        this.showAlert('alert-mfa-verify', 'Verification failed.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Verify & Complete Registration';
-      }
+        // Complete Registration Success
+        this.showView('view-reg-success');
+      } catch (e) { console.error(e); }
     }
 
     /* ==========================================================================
-       LOGIN JOURNEY IMPLEMENTATION
+       LOGIN FLOW ACTIONS
        ========================================================================== */
     async handleLoginSubmit(e) {
       e.preventDefault();
-      this.clearAlerts();
-
       const emailInput = document.getElementById('login-email');
       const passwordInput = document.getElementById('login-password');
       const email = emailInput.value.trim();
       const password = passwordInput.value;
       const rememberMe = document.getElementById('login-remember').checked;
 
-      if (!email || !password) {
-        emailInput.classList.add('error');
-        passwordInput.classList.add('error');
-        this.showAlert('alert-login', 'Please enter your email and password.');
-        return;
-      }
-
-      const submitBtn = document.getElementById('btn-submit-login');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Signing in...';
+      if (!email || !password) return;
 
       try {
-        const response = await fetch('/api/login', {
+        const res = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, rememberMe })
         });
+        const data = await res.json();
 
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          // Invalid credentials state: both fields show red error borders
+        if (!res.ok || !data.success) {
+          // Invalid credentials view state matching mockup:
+          document.getElementById('badge-login-state').className = 'icon-badge icon-badge-red';
           emailInput.classList.add('error');
           passwordInput.classList.add('error');
-
-          if (data.locked) {
-            this.showAlert('alert-login', data.error || 'Account locked. Try again later.', 'danger');
-          } else {
-            this.showAlert('alert-login', 'Invalid email or password. Please try again.', 'danger');
-          }
+          document.getElementById('login-email-err-icon').style.display = 'flex';
+          document.getElementById('login-error-msg').classList.add('active');
           return;
         }
 
-        // Backend drives next screen via response shape:
-        // { mfaRequired: true, method: 'email', challengeId: '...', maskedDestination: '...' }
-        if (data.mfaRequired) {
-          this.state.loginChallengeId = data.challengeId;
-          this.state.loginMethod = data.method;
+        // Reset error state
+        emailInput.classList.remove('error');
+        passwordInput.classList.remove('error');
+        document.getElementById('login-email-err-icon').style.display = 'none';
+        document.getElementById('login-error-msg').classList.remove('active');
 
-          const subtitle = document.getElementById('login-otp-subtitle');
-          const resendBtn = document.getElementById('btn-resend-login-otp');
+        this.state.loginChallengeId = data.challengeId;
+        this.state.loginMfaMethod = data.method;
+        this.state.loginEmail = email;
 
-          if (data.method === 'authenticator') {
-            subtitle.textContent = 'Enter the 6-digit code from your Authenticator app.';
-            resendBtn.style.display = 'none';
-          } else if (data.method === 'sms') {
-            subtitle.textContent = `Enter the 6-digit code sent to ${data.maskedDestination || 'your phone'}.`;
-            resendBtn.style.display = 'inline-block';
-            this.startCooldownTimer('btn-resend-login-otp', 'login-resend-timer', 30);
-          } else {
-            subtitle.textContent = `Enter the 6-digit code sent to ${data.maskedDestination || 'your email'}.`;
-            resendBtn.style.display = 'inline-block';
-            this.startCooldownTimer('btn-resend-login-otp', 'login-resend-timer', 30);
-          }
+        // Populate and open Login OTP view
+        document.getElementById('label-login-otp-dest').textContent = data.maskedDestination || email;
+        document.getElementById('title-login-otp').textContent = data.method === 'authenticator'
+          ? 'Authenticator Verification'
+          : data.method === 'sms'
+          ? 'SMS Verification'
+          : 'Email Verification';
 
-          this.clearOtpBoxes('login-otp-boxes');
-          this.showView('view-login-otp');
+        this.clearOtpBoxes('boxes-login-otp');
+        this.showView('view-login-otp-screen');
 
-          this.startExpiryTimer('login-otp-timer', data.expiresIn || 300, () => {
-            this.clearOtpBoxes('login-otp-boxes');
-            this.showAlert('alert-login-otp', 'Code expired. Please request a new code.', 'warning');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.textContent = 'Resend Code';
-            }
-          });
-        }
-      } catch (err) {
-        console.error('Login error:', err);
-        this.showAlert('alert-login', 'Network error. Please try again.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
-      }
+        this.startExpiryTimer('timer-login-otp', 165, () => {
+          document.getElementById('expired-login-otp-msg').classList.add('active');
+          document.getElementById('btn-resend-expired-login').style.display = 'block';
+          document.getElementById('cooldown-request-new-text').style.display = 'block';
+          this.startExpiryTimer('span-request-cooldown', 28);
+          this.clearOtpBoxes('boxes-login-otp');
+        });
+        this.startCooldownTimer('btn-resend-login-otp', 'cooldown-login-otp', 25);
+      } catch (err) { alert('Login error'); }
     }
 
     async handleVerifyLoginOtp() {
-      const otp = this.getOtpValue('login-otp-boxes');
-      if (otp.length !== 6) {
-        this.showAlert('alert-login-otp', 'Please enter all 6 digits of the verification code.');
-        return;
-      }
-
-      const verifyBtn = document.getElementById('btn-verify-login-otp');
-      verifyBtn.disabled = true;
-      verifyBtn.textContent = 'Verifying...';
+      const otp = this.getOtpCode('boxes-login-otp');
+      if (otp.length !== 6) return;
 
       try {
-        const response = await fetch('/api/verify-login-otp', {
+        const res = await fetch('/api/verify-login-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.loginChallengeId,
-            otp
-          })
+          body: JSON.stringify({ challengeId: this.state.loginChallengeId, otp })
         });
+        const data = await res.json();
 
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          this.highlightOtpError('login-otp-boxes');
-
-          if (data.maxAttemptsReached) {
-            this.setOtpBoxesDisabled('login-otp-boxes', true);
-            this.showAlert('alert-login-otp', 'Maximum attempts reached. Please request a new code.', 'danger');
-          } else if (data.expired) {
-            this.clearOtpBoxes('login-otp-boxes');
-            this.showAlert('alert-login-otp', 'Code expired.', 'warning');
-          } else {
-            const remaining = data.attemptsRemaining !== undefined ? ` (${data.attemptsRemaining} attempts remaining)` : '';
-            this.showAlert('alert-login-otp', `Incorrect code. Please try again.${remaining}`, 'danger');
+        if (!res.ok || !data.success) {
+          this.highlightOtpError('boxes-login-otp', true);
+          const errEl = document.getElementById('error-login-otp');
+          errEl.classList.add('active');
+          const attEl = document.getElementById('attempts-login-otp');
+          if (attEl && data.attemptsRemaining !== undefined) {
+            attEl.textContent = `You have ${data.attemptsRemaining} attempt${data.attemptsRemaining === 1 ? '' : 's'} left.`;
           }
           return;
         }
 
-        // Successfully authenticated! Set user state and redirect to dashboard view
+        // Successfully Logged In
         this.state.currentUser = data.user;
-        this.renderDashboard(data.user, data.session);
-        this.showView('view-dashboard');
-      } catch (err) {
-        this.showAlert('alert-login-otp', 'Verification failed.');
-      } finally {
-        verifyBtn.disabled = false;
-        verifyBtn.textContent = 'Verify & Sign In';
-      }
+        this.renderDashboard(data.user);
+        this.showDashboardView();
+      } catch (err) { console.error(err); }
     }
 
     async handleResendLoginOtp() {
       try {
-        const response = await fetch('/api/resend-login-otp', {
+        const res = await fetch('/api/resend-login-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            challengeId: this.state.loginChallengeId
-          })
+          body: JSON.stringify({ challengeId: this.state.loginChallengeId })
         });
-
-        const data = await response.json();
+        const data = await res.json();
         if (data.success) {
           this.state.loginChallengeId = data.challengeId;
-          this.clearOtpBoxes('login-otp-boxes');
-          this.showAlert('alert-login-otp', 'A new code has been simulated and sent!', 'info');
-          this.startExpiryTimer('login-otp-timer', data.expiresIn || 300);
-          this.startCooldownTimer('btn-resend-login-otp', 'login-resend-timer', 30);
+          document.getElementById('error-login-otp').classList.remove('active');
+          document.getElementById('expired-login-otp-msg').classList.remove('active');
+          document.getElementById('btn-resend-expired-login').style.display = 'none';
+          document.getElementById('cooldown-request-new-text').style.display = 'none';
+          this.clearOtpBoxes('boxes-login-otp');
+
+          this.startExpiryTimer('timer-login-otp', 165);
+          this.startCooldownTimer('btn-resend-login-otp', 'cooldown-login-otp', 25);
         }
-      } catch (err) {
-        this.showAlert('alert-login-otp', 'Failed to resend login code.');
-      }
+      } catch (e) { alert('Resend failed'); }
     }
 
     /* ==========================================================================
-       SESSION & DASHBOARD MANAGEMENT
+       SESSION & JWT PLAYGROUND
        ========================================================================== */
-    async checkActiveSession() {
+    async checkSession() {
       try {
-        const response = await fetch('/api/me');
-        if (response.ok) {
-          const data = await response.json();
+        const res = await fetch('/api/me');
+        if (res.ok) {
+          const data = await res.json();
           if (data.authenticated && data.user) {
             this.state.currentUser = data.user;
-            this.renderDashboard(data.user, data.session);
-            this.showView('view-dashboard');
+            this.renderDashboard(data.user);
+            this.showDashboardView();
           }
         }
-      } catch (err) {
-        // Not authenticated, stay on login view
-      }
+      } catch (e) { /* unauthenticated */ }
     }
 
-    renderDashboard(user, session) {
-      document.getElementById('dash-user-name').textContent = user.fullName || 'User';
-      document.getElementById('dash-user-email').textContent = user.email || '';
-      document.getElementById('dash-avatar').textContent = (user.fullName || 'U')[0].toUpperCase();
-
-      document.getElementById('meta-user-id').textContent = user.id || '-';
-      document.getElementById('meta-user-mobile').textContent = `${user.countryCode || '+91'} ${user.mobile || '-'}`;
-      document.getElementById('meta-mfa-method').innerHTML = `<span class="status-badge" style="padding: 2px 8px; font-size: 11px;">Active (${(user.mfaMethod || 'email').toUpperCase()})</span>`;
-      document.getElementById('meta-verification-status').textContent = 'Email & Mobile Verified';
+    renderDashboard(user) {
+      document.getElementById('dash-full-name').textContent = user.fullName || 'User';
+      document.getElementById('dash-email-address').textContent = user.email || '';
+      document.getElementById('dash-avatar-circle').textContent = (user.fullName || 'U')[0].toUpperCase();
+      document.getElementById('dash-meta-id').textContent = user.id || '-';
+      document.getElementById('dash-meta-mobile').textContent = `${user.countryCode || '+91'} ${user.mobile || '-'}`;
+      document.getElementById('dash-meta-mfa').textContent = `Enabled (${(user.mfaMethod || 'TOTP').toUpperCase()})`;
     }
 
     async handleLogout() {
-      try {
-        await fetch('/api/logout', { method: 'POST' });
-        this.state.currentUser = null;
-        this.state.jwtToken = null;
-        this.showView('view-login');
-        this.showAlert('global-alert', 'You have been safely signed out.', 'success');
-      } catch (err) {
-        console.error('Logout error:', err);
-      }
+      await fetch('/api/logout', { method: 'POST' });
+      this.state.currentUser = null;
+      this.state.jwtToken = null;
+      this.showLoginView();
     }
 
-    /* ==========================================================================
-       JWT AUTH PLAYGROUND (INDEPENDENT FLOW)
-       ========================================================================== */
     async handleIssueJwt() {
       try {
-        const response = await fetch('/api/token', {
+        const res = await fetch('/api/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: this.state.currentUser?.id })
         });
-
-        const data = await response.json();
-        if (data.success && data.accessToken) {
-          // Stored strictly in memory
+        const data = await res.json();
+        if (data.success) {
           this.state.jwtToken = data.accessToken;
-
-          document.getElementById('jwt-display-container').style.display = 'block';
-          document.getElementById('jwt-token-preview').textContent = `Bearer ${data.accessToken}\n\nClaims:\n${JSON.stringify(data.claims, null, 2)}`;
-          document.getElementById('jwt-api-response').textContent = 'Token issued! Click "Call Protected API" to make an authenticated request.';
-
-          document.getElementById('btn-call-protected-jwt').disabled = false;
+          document.getElementById('jwt-output-box').style.display = 'block';
+          document.getElementById('jwt-output-text').textContent = `Issued JWT Token:\n${data.accessToken}\n\nClaims:\n${JSON.stringify(data.claims, null, 2)}`;
+          document.getElementById('btn-dash-call-protected').disabled = false;
         }
-      } catch (err) {
-        alert('Failed to issue JWT token.');
-      }
+      } catch (e) { alert('Failed to issue JWT'); }
     }
 
     async handleCallProtectedJwt() {
-      if (!this.state.jwtToken) {
-        alert('Please issue a JWT token first.');
-        return;
-      }
-
+      if (!this.state.jwtToken) return;
       try {
-        const response = await fetch('/api/protected', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${this.state.jwtToken}`
-          }
+        const res = await fetch('/api/protected', {
+          headers: { 'Authorization': `Bearer ${this.state.jwtToken}` }
         });
-
-        const data = await response.json();
-        document.getElementById('jwt-api-response').textContent = `Status: ${response.status} ${response.statusText}\n\n` + JSON.stringify(data, null, 2);
-      } catch (err) {
-        document.getElementById('jwt-api-response').textContent = `Error: ${err.message}`;
-      }
+        const data = await res.json();
+        document.getElementById('jwt-output-box').style.display = 'block';
+        document.getElementById('jwt-output-text').textContent = `Status: ${res.status} OK\n\n` + JSON.stringify(data, null, 2);
+      } catch (e) { alert('API call failed'); }
     }
 
     async handleTestInvalidJwt() {
       try {
-        const response = await fetch('/api/protected', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer invalid_expired_or_forged_jwt_token_example_123`
-          }
+        const res = await fetch('/api/protected', {
+          headers: { 'Authorization': 'Bearer invalid_forged_token' }
         });
-
-        const data = await response.json();
-        document.getElementById('jwt-display-container').style.display = 'block';
-        document.getElementById('jwt-api-response').textContent = `Status: ${response.status} Unauthorized (Expected Behavior)\n\n` + JSON.stringify(data, null, 2);
-      } catch (err) {
-        document.getElementById('jwt-api-response').textContent = `Error: ${err.message}`;
-      }
+        const data = await res.json();
+        document.getElementById('jwt-output-box').style.display = 'block';
+        document.getElementById('jwt-output-text').textContent = `Status: ${res.status} Unauthorized (401 Rejection)\n\n` + JSON.stringify(data, null, 2);
+      } catch (e) { alert('API call failed'); }
     }
   }
 
-  // Initialize Application on DOM Ready
   document.addEventListener('DOMContentLoaded', () => {
-    window.app = new IAMApp();
+    window.app = new IAMController();
   });
 })();
